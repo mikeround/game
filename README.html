@@ -1,0 +1,202 @@
+# game
+
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'>
+<title>NEON AETHER</title>
+<style>
+/* Estilos encapsulados solo para el juego */
+.neon-game-wrapper {
+  margin: 20px auto;
+  max-width: 800px;
+  font-family: 'Courier New', monospace;
+}
+
+.neon-game-container {
+  position: relative;
+  width: 400px;
+  height: 300px;
+  margin: 0 auto;
+  border: 2px solid #0ff;
+  box-shadow: 0 0 20px #0ff;
+  transition: width 0.1s, height 0.1s;
+  overflow: hidden;
+  background: #000;
+}
+
+.neon-ui {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: #0ff;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 0 0 5px #0ff;
+}
+
+.neon-menu {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.neon-menu h1 {
+  color: #0ff;
+  text-shadow: 0 0 10px #0ff;
+  margin-bottom: 20px;
+}
+
+.neon-btn {
+  background: transparent;
+  border: 1px solid #f0f;
+  color: #f0f;
+  padding: 10px 20px;
+  margin: 5px;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+}
+
+.neon-btn:hover {
+  background: #f0f;
+  color: #000;
+}
+
+.neon-info {
+  color: #0ff;
+  font-size: 10px;
+  margin-top: 20px;
+}
+</style>
+</head>
+<body>
+
+<div class="neon-game-wrapper">
+  <div class="neon-game-container" id='game-container'>
+    <div class="neon-ui">SCORE: <span id='score'>0</span></div>
+    <div class="neon-menu" id='menu'>
+      <h1>NEON AETHER</h1>
+      <button class="neon-btn" onclick='startGame(1)'>EASY</button>
+      <button class="neon-btn" onclick='startGame(2)'>NORMAL</button>
+      <button class="neon-btn" onclick='startGame(3)'>HARD</button>
+      <p class="neon-info">Usa WASD para moverte | Scroll para redimensionar</p>
+    </div>
+    <canvas id='gameCanvas'></canvas>
+  </div>
+</div>
+
+<script src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'></script>
+<script>
+let scene, camera, renderer, player, obstacles = [], frame = 0, speed = 0.5, gameActive = false, score = 0, difficulty = 1;
+const container = document.getElementById('game-container');
+const canvas = document.getElementById('gameCanvas');
+
+function init() {
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x000000, 0.02);
+  camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  
+  const gridHelper = new THREE.GridHelper(200, 50, 0x00ffff, 0xff00ff);
+  gridHelper.rotation.x = Math.PI / 2;
+  scene.add(gridHelper);
+  
+  const geometry = new THREE.BoxGeometry(0.5, 0.5, 1);
+  const material = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true });
+  player = new THREE.Mesh(geometry, material);
+  scene.add(player);
+  
+  camera.position.z = 5;
+  animate();
+}
+
+function startGame(d) {
+  difficulty = d;
+  speed = 0.5 + (difficulty * 0.3);
+  document.getElementById('menu').style.display = 'none';
+  gameActive = true;
+  score = 0;
+  player.position.set(0,0,0);
+  obstacles.forEach(o => scene.remove(o));
+  obstacles = [];
+}
+
+function spawnObstacle() {
+  const geom = new THREE.IcosahedronGeometry(Math.random() * 0.8 + 0.2, 0);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
+  const obs = new THREE.Mesh(geom, mat);
+  obs.position.x = (Math.random() - 0.5) * 10;
+  obs.position.y = (Math.random() - 0.5) * 10;
+  obs.position.z = -50;
+  scene.add(obs);
+  obstacles.push(obs);
+}
+
+const keys = {};
+window.addEventListener('keydown', e => keys[e.code] = true);
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+container.addEventListener('wheel', e => {
+  e.preventDefault();
+  let w = container.clientWidth - e.deltaY;
+  let h = container.clientHeight - (e.deltaY * 0.75);
+  w = Math.max(200, Math.min(800, w));
+  h = Math.max(150, Math.min(600, h));
+  container.style.width = w + 'px';
+  container.style.height = h + 'px';
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}, {passive: false});
+
+function animate() {
+  requestAnimationFrame(animate);
+  
+  if(gameActive) {
+    if(keys['KeyW']) player.position.y += 0.1;
+    if(keys['KeyS']) player.position.y -= 0.1;
+    if(keys['KeyA']) player.position.x -= 0.1;
+    if(keys['KeyD']) player.position.x += 0.1;
+    
+    player.position.x = Math.max(-5, Math.min(5, player.position.x));
+    player.position.y = Math.max(-5, Math.min(5, player.position.y));
+    
+    if(frame % Math.max(2, (10 - difficulty * 2)) === 0) spawnObstacle();
+    
+    for(let i = obstacles.length - 1; i >= 0; i--) {
+      obstacles[i].position.z += speed;
+      obstacles[i].rotation.x += 0.02;
+      obstacles[i].rotation.y += 0.02;
+      
+      if(obstacles[i].position.distanceTo(player.position) < 0.7) {
+        gameActive = false;
+        document.getElementById('menu').style.display = 'flex';
+      }
+      
+      if(obstacles[i].position.z > 5) {
+        scene.remove(obstacles[i]);
+        obstacles.splice(i, 1);
+        score += 10;
+        document.getElementById('score').innerText = score;
+      }
+    }
+    frame++;
+  }
+  
+  renderer.render(scene, camera);
+}
+
+init();
+</script>
+
+</body>
+</html>
